@@ -1,3 +1,4 @@
+#include <valarray>
 #define STB_IMAGE_IMPLEMENTATION
 #include <GL/glew.h>
 #include <GL/gl.h>
@@ -62,6 +63,8 @@ float pitch = 0.0f;
 
 void mouse_movement(SDL_Event& mouseEvent, glm::vec3& cameraFront_upping){
 
+       
+
         float xoffset = static_cast<float>(mouseEvent.motion.xrel); 
         float yoffset = -static_cast<float>(mouseEvent.motion.yrel); 
 
@@ -87,110 +90,96 @@ void mouse_movement(SDL_Event& mouseEvent, glm::vec3& cameraFront_upping){
 int main(){
   
   SDL_Init(SDL_INIT_VIDEO);
-  SDL_Window *window = SDL_CreateWindow("cylinder shader", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WIDTH,HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
+  SDL_Window *window = SDL_CreateWindow("sphere shader", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WIDTH,HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
   SDL_GLContext gl_context = SDL_GL_CreateContext(window);
  glewExperimental = GL_TRUE;
-  
-  glewInit();
-
-  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glewInit();
+  // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   glEnable(GL_DEPTH_TEST);
-  
-  //the slices of cylinder
-  int slices = 36;
-  float radius = 0.7f;
-  float cylinder_height = 1.0f;
 
+  int slices = 16;
+  int stack = 16;
+  float radius = 0.7f;
 
   std::vector<coordinate> vertices;
 
   int circle_indices = slices * 3 * 2;
-  int rectangle_indices = slices * 6;
-  int cylinder_indices = circle_indices + rectangle_indices;
-  unsigned int *indices = new unsigned int[cylinder_indices];
+  int rectangle_indices = slices * 6 * (stack-2);
+  int sphere_indices = circle_indices + rectangle_indices;
+  unsigned int *indices = new unsigned int[sphere_indices];
 
-  float top = cylinder_height/2;
-  float bottom = -top;
+  float top = radius;
+  float bottom = -radius;
 
 
-  //top side of cylinder
   vertices.push_back({0.0f,top, 0.0f, 0.5f, 1.0f});
 
-  for(int i = 0; i<slices; i++){
-  float theta = i * 2 * M_PI / slices;
+  for(int i = 1; i<stack; i++){
 
-  
-  float x = cos(theta) * radius;
-  float y = top;
-  float z = sin(theta) * radius;
+  float phi = ((M_PI/2) -(i * M_PI / stack));
+    for (int j = 0; j<slices; j++) {
+    
+      
+      float theta = j * 2 * M_PI / slices;
+      float x = cos(theta) * (radius * cos(phi));
+      float y = radius * sin(phi);
+      float z = sin(theta) * (radius * cos(phi));
+      float u = (cos(theta) * 0.5f) + 0.5f;
+      float v = 1.0f - (sin(theta) * 0.5f);
 
-  float u = (cos(theta) * 0.5f) + 0.5f;
-  float v = 1.0f - (sin(theta) * 0.5f);
+      vertices.push_back({x,y,z,u,v});
 
-  vertices.push_back({x,y,z,u,v});
-  
-  int index = i * 3;
+    }
 
-  indices[index] = 0;
-  indices[index+1] = i+1;
-
-  if(i == slices - 1){
-    indices[index+2] = 1;
-  }
-  else { 
-  indices[index+2] = i+2;
-  }
-  }
-
-  //bottom side of cylinder 
-  unsigned int bottom_plane = vertices.size();
-
+   } 
   vertices.push_back({0.0f,bottom, 0.0f, 0.5f, 1.0f});
-  for(int i = 0; i<slices; i++){
-  float theta = i * 2 * M_PI / slices;
-
-  
-  float x = cos(theta) * radius;
-  float y = bottom;
-  float z = sin(theta) * radius;
-
-  float u = (cos(theta) * 0.5f) + 0.5f;
-  float v = 1.0f - (sin(theta) * 0.5f);
-
-  vertices.push_back({x,y,z,u,v});
-  
-  int index = (slices*3)+(i * 3);
-
-  indices[index] = bottom_plane;
-  indices[index+2] = bottom_plane+i+1;
-
-  if(i == slices - 1){
-    indices[index+1] = bottom_plane+1;
-  }
-  else { 
-  indices[index+1] = bottom_plane+i+2;
-  }
-  }
-
-  for(int i = 0; i<slices; i++){
-    unsigned int top_left = i+1;
-    unsigned int top_right = (i == slices - 1) ? 1 : i+2;
-
-    unsigned int bottom_left = bottom_plane+i+1;
-    unsigned int bottom_right = (i == slices - 1) ? bottom_plane+1 : bottom_plane+i+2;
+  unsigned int bottom_index = vertices.size() - 1;
     
-    int index_side = circle_indices + (i*6);
+   for (int j = 0 ; j<slices; j++) {
+    int index = j*3;
+    indices[index] = 0;
+    indices[index+1] = j+1;
+    indices[index+2] = (((j+1) % slices) + 1); 
+   } 
 
-    indices[index_side] = top_left;
-    indices[index_side+1] = top_right;
-    indices[index_side+2] = bottom_left;
-    
-    indices[index_side+3] = bottom_left;
-    indices[index_side+4] = bottom_right;
-    indices[index_side+5] = top_right;
+   for (int i = 0; i<stack -2; i++) {
 
+      unsigned int current_stack = 1+(i*slices);
+      unsigned int next_stack = current_stack + slices;
+
+    for (int j = 0  ; j<slices; j++) {
+      unsigned int next_slices = (j+1)%slices;
+
+      unsigned int top_left = current_stack + j;
+      unsigned int top_right = current_stack + next_slices;
+      unsigned int bottom_left = next_stack + j;
+      unsigned int bottom_right = next_stack + next_slices;
+
+      int index_side =  circle_indices /2+ (i*slices*6) + (j*6);
+      indices[index_side] = top_left;
+      indices[index_side+1] = top_right;
+      indices[index_side+2] = bottom_left;
     
-  }
+      indices[index_side+3] = bottom_left;
+      indices[index_side+4] = bottom_right;
+      indices[index_side+5] = top_right;
+
+     }
+   }
+
+  unsigned int bottom_start = 1 +((stack -2)* slices);
+  int bottom_index_offset   = sphere_indices - (3 * slices);
+
+for (int j = 0; j < slices; j++) {
+    int index = bottom_index_offset + (j * 3);
+
+    unsigned int current_index_bottom = bottom_start + j;
+    unsigned int next_index_bottom    = bottom_start + ((j + 1) % slices);
+
+    indices[index]     = bottom_index;
+    indices[index + 1] = next_index_bottom; 
+    indices[index + 2] = current_index_bottom; 
+}
 
 
 
@@ -205,7 +194,7 @@ int main(){
 
   glGenBuffers(1,&ebo);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,ebo);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, cylinder_indices*sizeof(unsigned int), indices, GL_STATIC_DRAW);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER,sphere_indices*sizeof(unsigned int), indices, GL_STATIC_DRAW);
 
   GLuint tex;
   glGenTextures(1, &tex);
@@ -316,7 +305,7 @@ int main(){
     model = glm::rotate(model, glm::radians(0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     glUniformMatrix4fv(uniModel, 1, GL_FALSE, glm::value_ptr(model));
 
-    glDrawElements(GL_TRIANGLES, cylinder_indices, GL_UNSIGNED_INT, 0);
+    glDrawElements(GL_TRIANGLES, sphere_indices, GL_UNSIGNED_INT, 0);
 
 
   SDL_GL_SwapWindow(window);
@@ -333,6 +322,5 @@ int main(){
   glDeleteBuffers(1, &vbo);
   glDeleteVertexArrays(1, &vao);
   delete[] indices;
-  
-  SDL_Quit();
+    SDL_Quit();
 }
